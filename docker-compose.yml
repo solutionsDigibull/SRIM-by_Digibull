@@ -1,0 +1,24 @@
+# ===========================================================================
+# DigiBull-SRIM / Accomplish - docker-compose (for users who have Docker)
+#
+#   Usage:   docker compose up --build
+#   Then open:  http://localhost:5173   (web UI)
+#               http://localhost:9234/health  (daemon health)
+#
+# Builds and runs the headless WEB build (daemon + Vite) from the live "Nr"
+# project. The Electron desktop GUI is NOT run in Docker - use INSTALL.bat on
+# Windows for the desktop app.
+# ===========================================================================
+services:
+  accomplish:
+    container_name: digibull-srim
+    build:
+      context: ./SRIM/Accomplish/accomplish_Wrapper/LOCAL/SRIM-UI/accomplish_Transformed_Nr/accomplish-react_
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"   # web (Vite)
+      - "9234:9234"   # daemon API
+    environment:
+      - HOST=0.0.0.0
+      - CI=true
+    restart: unless-stopped

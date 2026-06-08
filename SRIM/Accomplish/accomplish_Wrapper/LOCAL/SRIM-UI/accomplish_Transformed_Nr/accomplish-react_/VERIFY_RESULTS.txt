@@ -1,0 +1,139 @@
+=============================================================================
+ ACCOMPLISH (SRIM) WEB BUILD - VERIFICATION CHECKLIST & RESULTS
+ How to use: do each STEP in order. Under each step, fill in the RESULT line
+ (PASS / FAIL) and paste any error text / notes. Then send this file back.
+ Tip: keep the browser DevTools open (press F12 -> "Console" tab) the whole
+ time. Many failures show up there as red errors (especially "Unknown channel").
+=============================================================================
+
+HOW TO LAUNCH
+  1. Double-click  LAUNCH-WEB.bat  (in this folder).
+  2. It opens two windows: "Accomplish DAEMON :9234" and "Accomplish WEB :5173",
+     then opens http://localhost:5173 in your browser.
+  3. If the DAEMON window shows a better-sqlite3 / NODE_MODULE_VERSION error,
+     you are on the wrong Node. Run:  nvm use 24  then delete node_modules and
+     re-run the .bat. (Project requires Node 24+.)
+
+-----------------------------------------------------------------------------
+STEP 1 - Backend daemon starts
+  Look at the "Accomplish DAEMON :9234" window.
+  EXPECT: it finishes building and prints a line like:
+          [BrowserApi] Listening on port 9234
+  No stack traces / "Error:" at the end.
+  RESULT: [ ] PASS  [ ] FAIL
+  Notes / last 10 lines of the daemon window:
+
+
+-----------------------------------------------------------------------------
+STEP 2 - Web dev server starts
+  Look at the "Accomplish WEB :5173" window.
+  EXPECT: Vite prints  "Local:  http://localhost:5173/"  with no errors.
+  RESULT: [ ] PASS  [ ] FAIL
+  Notes:
+
+
+-----------------------------------------------------------------------------
+STEP 3 - Backend health check (manual)
+  Open a new browser tab to:  http://127.0.0.1:9234/health
+  EXPECT: the page shows  {"ok":true}
+  RESULT: [ ] PASS  [ ] FAIL
+  What you saw:
+
+
+-----------------------------------------------------------------------------
+STEP 4 - Login page loads
+  Go to http://localhost:5173  (it should redirect to the login screen).
+  EXPECT: dark page, DigiBull.ai logo, big "SRIM" letters, a "Welcome back"
+          card with an Access Token field. In DEV you also see a dashed
+          "Testing build - local credentials" box with a "Sign in as Tester" button.
+  RESULT: [ ] PASS  [ ] FAIL
+  Notes (is the Testing box visible? any console errors?):
+
+
+-----------------------------------------------------------------------------
+STEP 5 - Test login works  (this validates the new dev login + session)
+  Click the "Sign in as Tester" button.
+  (Alternative: type  srim-dev-token  into the Access Token field and Sign In.)
+  EXPECT: you are taken into the main app (no error toast). Refreshing the page
+          keeps you logged in.
+  RESULT: [ ] PASS  [ ] FAIL
+  Notes (error message if any, and Console tab errors):
+
+
+-----------------------------------------------------------------------------
+STEP 6 - Main app shell loads
+  EXPECT: the app UI renders (sidebar + main area), NOT a blank white screen.
+          A "daemon connected" state (no persistent "disconnected" toast).
+  RESULT: [ ] PASS  [ ] FAIL
+  Notes:
+
+
+-----------------------------------------------------------------------------
+STEP 7 - Customize / Appearance section  (NEW feature)
+  Open Settings (gear icon) -> "General" tab. Find the "Customize appearance"
+  card (below the theme selector).
+  Do each and watch the UI:
+   7a. Click each Accent color swatch  -> buttons/links/highlights recolor.
+   7b. Toggle "Dim mode (medium)" ON (while in dark theme) -> background gets
+       a softer mid-grey.
+   7c. Toggle "Animations" OFF -> motion/transitions stop.
+   7d. Click Background pattern: Stripes / Dots / None -> subtle texture appears.
+   7e. Reload the page (F5) -> your choices are remembered.
+  RESULT: [ ] PASS  [ ] FAIL  (note which of 7a-7e worked)
+  Notes:
+
+
+-----------------------------------------------------------------------------
+STEP 8 - Existing theme still works
+  In Settings -> General, use the original theme dropdown: System / Light / Dark.
+  EXPECT: switching changes light/dark as before (unaffected by the new panel).
+  RESULT: [ ] PASS  [ ] FAIL
+  Notes:
+
+
+-----------------------------------------------------------------------------
+STEP 9 - Settings provider configs load  (validates bucket-A wiring)
+  Open Settings -> Providers (or Models). Open a few provider forms, e.g.
+  LM Studio, Azure Foundry, Ollama, LiteLLM, Hugging Face (local).
+  EXPECT: each form opens and its saved config fields load WITHOUT a red
+          console error such as:  Error: Unknown channel: ...
+  >>> IMPORTANT: In DevTools Console, search (Ctrl+F) for the text:
+          Unknown channel
+      List EVERY "Unknown channel: xxx" message you see (these are still-missing
+      methods we need to wire next).
+  RESULT: [ ] PASS  [ ] FAIL
+  "Unknown channel" messages seen (paste all):
+
+
+-----------------------------------------------------------------------------
+STEP 10 - Accomplish AI free model  (you asked to confirm this still works)
+  In Settings -> Providers, find "Accomplish AI" and click Connect / Enable.
+  EXPECT: it attempts to connect and shows a status (connected, or a clear
+          error) - it should NOT throw "Unknown channel".
+  RESULT: [ ] PASS  [ ] FAIL
+  Status shown / any error:
+
+
+-----------------------------------------------------------------------------
+STEP 11 - General console sweep
+  With the app open, click around the main views for ~1 minute.
+  In DevTools Console, note any RED errors.
+  RESULT: [ ] PASS  [ ] FAIL
+  Paste any red errors here (especially "Unknown channel", 401, or failed fetch):
+
+
+-----------------------------------------------------------------------------
+OPTIONAL STEP 12 - Run a task (only if you have a provider/API key configured)
+  Try starting a simple task. NOTE: running tasks needs the opencode runtime +
+  a configured model, which may not be set up yet - a failure here is expected
+  and is separate from the migration wiring.
+  RESULT: [ ] PASS  [ ] FAIL  [ ] SKIPPED
+  Notes:
+
+
+=============================================================================
+ SUMMARY (fill after finishing)
+   Steps PASSED: ____ / 11
+   Biggest blockers:
+   Full list of "Unknown channel" methods found:
+=============================================================================
