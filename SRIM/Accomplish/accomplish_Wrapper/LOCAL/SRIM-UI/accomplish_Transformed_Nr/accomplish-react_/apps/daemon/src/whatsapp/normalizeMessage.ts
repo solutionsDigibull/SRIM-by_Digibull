@@ -8,11 +8,13 @@
 export interface NormalizedMessage {
   messageId: string;
   senderId: string;
+  chatJid: string;
   senderName?: string;
   text: string;
   timestamp: number;
   isGroup: boolean;
   isFromMe: boolean;
+  mentionedJids: string[];
 }
 
 /**
@@ -39,6 +41,9 @@ export function normalizeMessage(msg: Record<string, unknown>): NormalizedMessag
     (docMsg?.title as string) ||
     '';
 
+  const contextInfo = extendedText?.contextInfo as Record<string, unknown> | undefined;
+  const mentionedJids = (contextInfo?.mentionedJid as string[] | undefined) ?? [];
+
   if (!text.trim()) {
     return null;
   }
@@ -50,7 +55,7 @@ export function normalizeMessage(msg: Record<string, unknown>): NormalizedMessag
   const isGroup = chatJid.endsWith('@g.us');
   // For incoming group messages, senderId is the individual participant, not the group JID.
   // For outgoing messages and DMs, it equals chatJid.
-  const senderId = (!key.fromMe && key.participant ? (key.participant as string) : chatJid) || '';
+  const senderId = (isGroup && key.participant ? (key.participant as string) : chatJid) || '';
   const senderName = (msg.pushName as string) || undefined;
   const isFromMe = key.fromMe === true;
 
@@ -67,10 +72,12 @@ export function normalizeMessage(msg: Record<string, unknown>): NormalizedMessag
   return {
     messageId: (key.id as string) || '',
     senderId,
+    chatJid,
     senderName,
     text,
     timestamp: ts * 1000,
     isGroup,
     isFromMe,
+    mentionedJids,
   };
 }

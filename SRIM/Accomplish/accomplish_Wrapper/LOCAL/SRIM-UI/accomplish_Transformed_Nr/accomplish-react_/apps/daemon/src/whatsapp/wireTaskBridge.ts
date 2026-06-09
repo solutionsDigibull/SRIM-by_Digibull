@@ -246,5 +246,11 @@ export function wireTaskBridge(
     bridge.setOwnerLid(lid);
   });
 
+  // Initialise allowed group JID from persisted config (set via Settings UI)
+  const initConfig = storage.getMessagingConfig();
+  bridge.setAllowedGroupJid(
+    (initConfig?.integrations?.whatsapp?.groupJid as string | undefined) ?? null,
+  );
+
   return { bridge };
 }

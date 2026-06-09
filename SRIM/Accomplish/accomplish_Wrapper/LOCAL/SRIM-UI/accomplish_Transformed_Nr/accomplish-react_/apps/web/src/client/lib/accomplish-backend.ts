@@ -137,6 +137,7 @@ const RPC: Record<string, string> = {
   // WhatsApp
   getWhatsAppConfig: 'whatsapp:get-config', connectWhatsApp: 'whatsapp:connect',
   disconnectWhatsApp: 'whatsapp:disconnect', setWhatsAppEnabled: 'whatsapp:set-enabled',
+  setWhatsAppGroupJid: 'whatsapp:set-group-jid',
   // Sandbox config
   getSandboxConfig: 'sandbox:get-config', setSandboxConfig: 'sandbox:set-config',
   // Provider connection tests (run in daemon — need Node.js SDKs)

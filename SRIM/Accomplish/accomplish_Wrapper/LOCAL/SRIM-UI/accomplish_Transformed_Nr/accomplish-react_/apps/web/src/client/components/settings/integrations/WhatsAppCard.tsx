@@ -16,12 +16,15 @@ export function WhatsAppCard() {
     confirmDisconnect,
     forceWiping,
     confirmForceWipe,
+    groupJid,
     error,
     qrCode,
     qrExpiresAt,
     handleConnect,
     handleDisconnect,
     handleForceWipe,
+    handleSetGroupJid,
+    setGroupJid,
     setQrCode,
   } = useWhatsAppCard();
 
@@ -103,6 +106,29 @@ export function WhatsAppCard() {
             <span className="text-xs font-medium">
               Connected{config?.phoneNumber ? ` (+${config.phoneNumber})` : ''}
             </span>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground">Group @mention JID</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={groupJid}
+                onChange={(e) => setGroupJid(e.target.value)}
+                placeholder="1234567890-1234567890@g.us"
+                className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <button
+                type="button"
+                onClick={() => handleSetGroupJid(groupJid)}
+                className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                Save
+              </button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Paste a group JID to allow anyone in that group to trigger tasks by typing{' '}
+              <strong>@DigiBull &lt;task&gt;</strong>. Leave empty to use self-chat only.
+            </p>
           </div>
           <button
             type="button"

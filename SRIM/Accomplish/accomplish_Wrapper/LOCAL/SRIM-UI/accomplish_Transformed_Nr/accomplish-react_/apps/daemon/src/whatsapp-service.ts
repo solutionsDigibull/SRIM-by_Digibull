@@ -30,6 +30,7 @@ export interface WhatsAppDaemonConfig {
   lastConnectedAt?: number;
   qrCode?: string;
   qrIssuedAt?: number;
+  groupJid?: string;
 }
 
 export class WhatsAppDaemonService extends EventEmitter {
@@ -161,6 +162,11 @@ export class WhatsAppDaemonService extends EventEmitter {
       }
     }
 
+    const groupJid = this.getGroupJid();
+    if (groupJid) {
+      result.groupJid = groupJid;
+    }
+
     return result;
   }
 
@@ -204,6 +210,36 @@ export class WhatsAppDaemonService extends EventEmitter {
    */
   markDisconnected(): void {
     this.service?.markDisconnected();
+  }
+
+  /**
+   * Set (or clear) the allowed group JID for @mention triggering.
+   * Persisted to storage so it survives daemon restarts.
+   */
+  setGroupJid(jid: string | null): void {
+    if (this.bridge) {
+      this.bridge.setAllowedGroupJid(jid);
+    }
+    const config = this.storage.getMessagingConfig();
+    if (config?.integrations?.whatsapp) {
+      this.storage.setMessagingConfig({
+        integrations: {
+          ...(config.integrations ?? {}),
+          whatsapp: {
+            ...(config.integrations.whatsapp ?? {}),
+            groupJid: jid ?? undefined,
+          },
+        },
+      });
+    }
+  }
+
+  getGroupJid(): string | null {
+    if (this.bridge) {
+      return this.bridge.getAllowedGroupJid();
+    }
+    const config = this.storage.getMessagingConfig();
+    return (config?.integrations?.whatsapp?.groupJid as string | undefined) ?? null;
   }
 
   /**

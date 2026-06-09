@@ -52,6 +52,7 @@ export class TaskBridge {
   private messageHandler: (msg: InboundMessage) => void;
   private ownerJid: string | null = null;
   private ownerLid: string | null = null;
+  private allowedGroupJid: string | null = null;
   private enabled = true;
 
   constructor(
@@ -87,6 +88,12 @@ export class TaskBridge {
   getOwnerLid(): string | null {
     return this.ownerLid;
   }
+  setAllowedGroupJid(jid: string | null): void {
+    this.allowedGroupJid = jid;
+  }
+  getAllowedGroupJid(): string | null {
+    return this.allowedGroupJid;
+  }
   setEnabled(enabled: boolean): void {
     this.enabled = enabled;
   }
@@ -99,16 +106,16 @@ export class TaskBridge {
     this.activeTasks.set(senderId, taskId);
   }
 
-  clearActiveTask(senderId: string): void {
-    this.activeTasks.delete(senderId);
+  clearActiveTask(conversationId: string): void {
+    this.activeTasks.delete(conversationId);
 
-    // Process next queued message for this sender (if any).
+    // Process next queued message for this conversation (if any).
     // Handles offline batches where multiple messages arrived while a task was running.
-    const queue = this.pendingMessages.get(senderId);
+    const queue = this.pendingMessages.get(conversationId);
     if (queue && queue.length > 0) {
       const next = queue.shift()!;
       if (queue.length === 0) {
-        this.pendingMessages.delete(senderId);
+        this.pendingMessages.delete(conversationId);
       }
       // Re-enter handleMessage for the queued message
       this.handleMessage(next).catch((err) => {
@@ -125,28 +132,55 @@ export class TaskBridge {
     return getSessionForSender(this.senderSessions, senderId);
   }
 
+  /**
+   * Strip the bot's @mention prefix from group message text.
+   * WhatsApp encodes mentions as @phonenumber in the message body.
+   */
+  private stripBotMention(text: string): string {
+    const jid = this.ownerJid ?? this.ownerLid;
+    if (!jid) return text;
+    const phone = jid.split('@')[0];
+    return text.replace(new RegExp(`@${phone}\\s*`, 'g'), '').trim();
+  }
+
   private async handleMessage(msg: InboundMessage): Promise<void> {
     if (!this.enabled) {
       return;
     }
+
+    // conversationId = reply target + active-task key
+    // For DMs: senderId === chatJid (the personal JID)
+    // For groups: chatJid is the group, senderId is the individual participant
+    const conversationId = msg.isGroup ? msg.chatJid : msg.senderId;
+
     if (msg.isGroup) {
-      return;
-    }
-
-    // Self-only access control (fail-closed): only accept self-chat messages.
-    // WhatsApp uses two identity formats: JID (phone@s.whatsapp.net) and
-    // LID (linked-identity@lid). Self-chat messages arrive in LID format,
-    // so we compare the sender against whichever format matches.
-    if (!this.ownerJid && !this.ownerLid) {
-      return;
-    }
-
-    const senderMatchesOwner = isLidUser(msg.senderId)
-      ? msg.senderId === this.ownerLid
-      : msg.senderId === this.ownerJid;
-    const isSelfChat = msg.isFromMe && senderMatchesOwner;
-    if (!isSelfChat) {
-      return;
+      // Allow only the configured group, only when the bot is @mentioned by anyone.
+      if (!this.allowedGroupJid || msg.chatJid !== this.allowedGroupJid) {
+        return;
+      }
+      if (!this.ownerJid && !this.ownerLid) {
+        return;
+      }
+      const isMentioned =
+        (this.ownerJid !== null && msg.mentionedJids.includes(this.ownerJid)) ||
+        (this.ownerLid !== null && msg.mentionedJids.includes(this.ownerLid));
+      if (!isMentioned) {
+        return;
+      }
+    } else {
+      // DM: self-chat only (fail-closed).
+      // WhatsApp uses two identity formats: JID (phone@s.whatsapp.net) and
+      // LID (linked-identity@lid). Self-chat messages arrive in LID format.
+      if (!this.ownerJid && !this.ownerLid) {
+        return;
+      }
+      const senderMatchesOwner = isLidUser(msg.senderId)
+        ? msg.senderId === this.ownerLid
+        : msg.senderId === this.ownerJid;
+      const isSelfChat = msg.isFromMe && senderMatchesOwner;
+      if (!isSelfChat) {
+        return;
+      }
     }
 
     if (isGlobalRateLimited(this.rateLimitState)) {
@@ -155,7 +189,7 @@ export class TaskBridge {
 
     if (isRateLimited(this.rateLimitState, msg.senderId)) {
       await this.transport
-        .sendMessage(msg.senderId, 'You are sending messages too quickly. Please wait a moment.')
+        .sendMessage(conversationId, 'You are sending messages too quickly. Please wait a moment.')
         .catch(() => {});
       return;
     }
@@ -165,7 +199,7 @@ export class TaskBridge {
     if (msg.text.length > MAX_MESSAGE_LENGTH) {
       await this.transport
         .sendMessage(
-          msg.senderId,
+          conversationId,
           `Message too long. Please keep messages under ${MAX_MESSAGE_LENGTH} characters.`,
         )
         .catch(() => {});
@@ -178,19 +212,30 @@ export class TaskBridge {
     } catch {
       await this.transport
         .sendMessage(
-          msg.senderId,
+          conversationId,
           'Could not process your message. Please try again with plain text.',
         )
         .catch(() => {});
       return;
     }
 
-    if (this.hasActiveTask(msg.senderId)) {
+    // For group messages: strip the @bot mention from the text before sending to the LLM.
+    if (msg.isGroup) {
+      sanitizedText = this.stripBotMention(sanitizedText);
+      if (!sanitizedText) {
+        await this.transport
+          .sendMessage(conversationId, 'Please include a task after the @mention.')
+          .catch(() => {});
+        return;
+      }
+    }
+
+    if (this.hasActiveTask(conversationId)) {
       // Queue the message instead of dropping it — process when current task completes.
       // This handles offline message batches where multiple messages arrive at once.
-      const queue = this.pendingMessages.get(msg.senderId) ?? [];
+      const queue = this.pendingMessages.get(conversationId) ?? [];
       queue.push(msg);
-      this.pendingMessages.set(msg.senderId, queue);
+      this.pendingMessages.set(conversationId, queue);
       return;
     }
 
@@ -201,11 +246,11 @@ export class TaskBridge {
       : undefined;
 
     // Mark task as active immediately to prevent duplicates before onTaskRequest resolves
-    this.setActiveTask(msg.senderId, 'pending');
+    this.setActiveTask(conversationId, 'pending');
 
     try {
       await this.onTaskRequest(
-        msg.senderId,
+        conversationId,
         safeSenderName,
         sanitizedText,
         msg.messageId,
@@ -213,10 +258,10 @@ export class TaskBridge {
       );
     } catch (err) {
       log.error('[TaskBridge] Failed to create task:', err);
-      this.clearActiveTask(msg.senderId);
+      this.clearActiveTask(conversationId);
       await this.transport
         .sendMessage(
-          msg.senderId,
+          conversationId,
           'Sorry, I could not process your request. Please try again later.',
         )
         .catch(() => {});

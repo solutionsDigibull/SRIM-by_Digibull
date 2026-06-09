@@ -6,11 +6,13 @@
 export interface InboundMessage {
   messageId: string;
   senderId: string;
+  chatJid: string;
   senderName?: string;
   text: string;
   timestamp: number;
   isGroup: boolean;
   isFromMe: boolean;
+  mentionedJids: string[];
 }
 
 /** Minimal contract TaskBridge needs from a WhatsApp transport layer. */

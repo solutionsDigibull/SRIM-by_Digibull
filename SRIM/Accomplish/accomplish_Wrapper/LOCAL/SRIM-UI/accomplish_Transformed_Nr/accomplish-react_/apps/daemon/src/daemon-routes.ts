@@ -353,6 +353,14 @@ export function registerRpcMethods(services: RouteServices): void {
       return Promise.resolve();
     }),
   );
+  rpc.registerMethod(
+    'whatsapp.setGroupJid',
+    safeHandler((params) => {
+      const validated = validate(z.object({ groupJid: z.string().nullable() }), params);
+      whatsappService.setGroupJid(validated.groupJid);
+      return Promise.resolve();
+    }),
+  );
 
   // ---------------------------------------------------------------------------
   // OpenAI ChatGPT OAuth (Phase 4a of the SDK cutover port, commercial PR #720)

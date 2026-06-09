@@ -30,6 +30,7 @@ export interface WhatsAppCardState {
   confirmDisconnect: boolean;
   forceWiping: boolean;
   confirmForceWipe: boolean;
+  groupJid: string;
   error: string | null;
   qrCode: string | null;
   qrExpiresAt: number;
@@ -39,6 +40,8 @@ export interface WhatsAppCardActions {
   handleConnect(): Promise<void>;
   handleDisconnect(): Promise<void>;
   handleForceWipe(): Promise<void>;
+  handleSetGroupJid(jid: string): Promise<void>;
+  setGroupJid(jid: string): void;
   setQrCode(qr: string | null): void;
 }
 
@@ -52,6 +55,7 @@ export function useWhatsAppCard(): WhatsAppCardState & WhatsAppCardActions {
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [forceWiping, setForceWiping] = useState(false);
   const [confirmForceWipe, setConfirmForceWipe] = useState(false);
+  const [groupJid, setGroupJid] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [qrExpiresAt, setQrExpiresAt] = useState<number>(0);
@@ -101,6 +105,9 @@ export function useWhatsAppCard(): WhatsAppCardState & WhatsAppCardActions {
           phoneNumber: result.phoneNumber,
           lastConnectedAt: result.lastConnectedAt,
         });
+        if (result.groupJid) {
+          setGroupJid(result.groupJid);
+        }
         // QR recovery: if daemon is already in qr_ready with a QR code, show it
         if (status === 'qr_ready' && result.qrCode && result.qrIssuedAt) {
           setQrCode(result.qrCode);
@@ -191,6 +198,7 @@ export function useWhatsAppCard(): WhatsAppCardState & WhatsAppCardActions {
       await accomplish.disconnectWhatsApp();
       setConfig(null);
       setQrCode(null);
+      setGroupJid('');
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove WhatsApp data');
@@ -198,6 +206,17 @@ export function useWhatsAppCard(): WhatsAppCardState & WhatsAppCardActions {
       setForceWiping(false);
     }
   }, [confirmForceWipe, accomplish]);
+
+  const handleSetGroupJid = useCallback(
+    async (jid: string) => {
+      try {
+        await accomplish.setWhatsAppGroupJid(jid.trim() || null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to save group JID');
+      }
+    },
+    [accomplish],
+  );
 
   return {
     config,
@@ -207,12 +226,15 @@ export function useWhatsAppCard(): WhatsAppCardState & WhatsAppCardActions {
     confirmDisconnect,
     forceWiping,
     confirmForceWipe,
+    groupJid,
     error,
     qrCode,
     qrExpiresAt,
     handleConnect,
     handleDisconnect,
     handleForceWipe,
+    handleSetGroupJid,
+    setGroupJid,
     setQrCode,
   };
 }

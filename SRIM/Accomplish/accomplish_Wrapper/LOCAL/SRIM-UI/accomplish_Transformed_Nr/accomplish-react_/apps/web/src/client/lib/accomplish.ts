@@ -162,10 +162,12 @@ interface AccomplishAPI {
     lastConnectedAt?: number;
     qrCode?: string;
     qrIssuedAt?: number;
+    groupJid?: string;
   } | null>;
   connectWhatsApp(): Promise<void>;
   disconnectWhatsApp(): Promise<void>;
   setWhatsAppEnabled(enabled: boolean): Promise<void>;
+  setWhatsAppGroupJid(groupJid: string | null): Promise<void>;
   onWhatsAppQR(callback: (qr: string) => void): () => void;
   onWhatsAppStatus(callback: (status: MessagingConnectionStatus) => void): () => void;
 

@@ -31,4 +31,12 @@ export function registerWhatsAppHandlers(handle: IpcHandler): void {
       await client.call('whatsapp.setEnabled', { enabled });
     },
   );
+
+  handle(
+    'integrations:whatsapp:set-group-jid',
+    async (_event: IpcMainInvokeEvent, groupJid: string | null) => {
+      const client = getDaemonClient();
+      await client.call('whatsapp.setGroupJid', { groupJid });
+    },
+  );
 }
