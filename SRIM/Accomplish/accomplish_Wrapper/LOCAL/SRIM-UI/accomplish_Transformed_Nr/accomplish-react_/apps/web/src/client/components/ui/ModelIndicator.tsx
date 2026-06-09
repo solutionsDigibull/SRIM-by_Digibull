@@ -220,7 +220,11 @@ export function ModelIndicator({
         </button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" sideOffset={8} className="w-52 shadow-lg">
+      <DropdownMenuContent
+        align="end"
+        sideOffset={8}
+        className="w-52 max-h-[24rem] overflow-y-auto shadow-lg"
+      >
         <DropdownMenuItem
           disabled={isRunning}
           className="px-3 py-2 text-sm cursor-pointer"
