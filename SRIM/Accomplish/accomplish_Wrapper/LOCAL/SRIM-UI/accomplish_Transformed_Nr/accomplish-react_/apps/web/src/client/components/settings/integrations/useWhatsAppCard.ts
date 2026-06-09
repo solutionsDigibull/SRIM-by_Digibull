@@ -28,6 +28,8 @@ export interface WhatsAppCardState {
   connecting: boolean;
   disconnecting: boolean;
   confirmDisconnect: boolean;
+  forceWiping: boolean;
+  confirmForceWipe: boolean;
   error: string | null;
   qrCode: string | null;
   qrExpiresAt: number;
@@ -36,6 +38,7 @@ export interface WhatsAppCardState {
 export interface WhatsAppCardActions {
   handleConnect(): Promise<void>;
   handleDisconnect(): Promise<void>;
+  handleForceWipe(): Promise<void>;
   setQrCode(qr: string | null): void;
 }
 
@@ -47,6 +50,8 @@ export function useWhatsAppCard(): WhatsAppCardState & WhatsAppCardActions {
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const [forceWiping, setForceWiping] = useState(false);
+  const [confirmForceWipe, setConfirmForceWipe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [qrExpiresAt, setQrExpiresAt] = useState<number>(0);
@@ -61,6 +66,15 @@ export function useWhatsAppCard(): WhatsAppCardState & WhatsAppCardActions {
     const timer = setTimeout(() => setConfirmDisconnect(false), 3000);
     return () => clearTimeout(timer);
   }, [confirmDisconnect]);
+
+  // Auto-clear confirm force-wipe after 3 seconds
+  useEffect(() => {
+    if (!confirmForceWipe) {
+      return;
+    }
+    const timer = setTimeout(() => setConfirmForceWipe(false), 3000);
+    return () => clearTimeout(timer);
+  }, [confirmForceWipe]);
 
   // Cleanup timers on unmount. Reads .current in the cleanup function intentionally —
   // we want whatever timers are active at unmount time, not the values at mount time.
@@ -166,17 +180,39 @@ export function useWhatsAppCard(): WhatsAppCardState & WhatsAppCardActions {
     }
   }, [confirmDisconnect, accomplish]);
 
+  const handleForceWipe = useCallback(async () => {
+    if (!confirmForceWipe) {
+      setConfirmForceWipe(true);
+      return;
+    }
+    setForceWiping(true);
+    setConfirmForceWipe(false);
+    try {
+      await accomplish.disconnectWhatsApp();
+      setConfig(null);
+      setQrCode(null);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove WhatsApp data');
+    } finally {
+      setForceWiping(false);
+    }
+  }, [confirmForceWipe, accomplish]);
+
   return {
     config,
     loading,
     connecting,
     disconnecting,
     confirmDisconnect,
+    forceWiping,
+    confirmForceWipe,
     error,
     qrCode,
     qrExpiresAt,
     handleConnect,
     handleDisconnect,
+    handleForceWipe,
     setQrCode,
   };
 }

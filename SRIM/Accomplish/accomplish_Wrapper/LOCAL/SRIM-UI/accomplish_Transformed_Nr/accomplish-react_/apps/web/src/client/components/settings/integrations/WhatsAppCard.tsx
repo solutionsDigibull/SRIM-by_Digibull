@@ -14,11 +14,14 @@ export function WhatsAppCard() {
     connecting,
     disconnecting,
     confirmDisconnect,
+    forceWiping,
+    confirmForceWipe,
     error,
     qrCode,
     qrExpiresAt,
     handleConnect,
     handleDisconnect,
+    handleForceWipe,
     setQrCode,
   } = useWhatsAppCard();
 
@@ -50,6 +53,16 @@ export function WhatsAppCard() {
       return 'Confirm Disconnect?';
     }
     return 'Disconnect';
+  }
+
+  function getForceWipeLabel(): string {
+    if (forceWiping) {
+      return 'Removing…';
+    }
+    if (confirmForceWipe) {
+      return 'Tap again to confirm wipe';
+    }
+    return 'Remove All Data';
   }
 
   return (
@@ -94,7 +107,7 @@ export function WhatsAppCard() {
           <button
             type="button"
             onClick={handleDisconnect}
-            disabled={disconnecting}
+            disabled={disconnecting || forceWiping}
             aria-label={
               confirmDisconnect ? 'Confirm disconnect from WhatsApp' : 'Disconnect from WhatsApp'
             }
@@ -107,6 +120,20 @@ export function WhatsAppCard() {
           >
             {getDisconnectLabel()}
           </button>
+          <button
+            type="button"
+            onClick={handleForceWipe}
+            disabled={forceWiping || disconnecting}
+            aria-label="Remove all WhatsApp data from this device"
+            data-testid="whatsapp-force-wipe-button"
+            className={`w-full rounded-md border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
+              confirmForceWipe
+                ? 'border-destructive bg-destructive/10 text-destructive'
+                : 'border-destructive/50 text-destructive hover:bg-destructive/10'
+            }`}
+          >
+            {getForceWipeLabel()}
+          </button>
         </div>
       )}
 
@@ -118,6 +145,20 @@ export function WhatsAppCard() {
               Your WhatsApp session was logged out. Please reconnect to continue.
             </p>
           </div>
+          <button
+            type="button"
+            onClick={handleForceWipe}
+            disabled={forceWiping}
+            aria-label="Remove all WhatsApp data from this device"
+            data-testid="whatsapp-force-wipe-button"
+            className={`w-full rounded-md border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
+              confirmForceWipe
+                ? 'border-destructive bg-destructive/10 text-destructive'
+                : 'border-destructive/50 text-destructive hover:bg-destructive/10'
+            }`}
+          >
+            {getForceWipeLabel()}
+          </button>
           <button
             type="button"
             onClick={handleConnect}
@@ -142,6 +183,20 @@ export function WhatsAppCard() {
             Open WhatsApp on your phone, go to <strong>Settings &gt; Linked Devices</strong>, and
             scan this code.
           </p>
+          <button
+            type="button"
+            onClick={handleForceWipe}
+            disabled={forceWiping}
+            aria-label="Cancel and remove all WhatsApp data"
+            data-testid="whatsapp-force-wipe-button"
+            className={`w-full rounded-md border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
+              confirmForceWipe
+                ? 'border-destructive bg-destructive/10 text-destructive'
+                : 'border-destructive/50 text-destructive hover:bg-destructive/10'
+            }`}
+          >
+            {getForceWipeLabel()}
+          </button>
         </div>
       )}
 
