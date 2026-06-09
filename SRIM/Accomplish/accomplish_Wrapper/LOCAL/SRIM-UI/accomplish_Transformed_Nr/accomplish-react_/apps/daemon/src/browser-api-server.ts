@@ -22,6 +22,7 @@ import type { OpenAiOauthManager } from './opencode/auth-openai.js';
 // env overrides so a port/domain change needs no code edits.
 const PORT = Number(process.env.ACCOMPLISH_BACKEND_PORT) || BROWSER_API_PORT;
 const ORIGIN = process.env.ACCOMPLISH_WEB_ORIGIN || WEB_DEV_ORIGIN;
+const BUILD_AUTHOR = 'Nagabhushana Raju S';
 
 /**
  * Trim whitespace and strip one layer of matching surrounding quotes from a
@@ -453,7 +454,7 @@ export class BrowserApiServer {
         return {
           app: 'SRIM',
           brand: 'DigiBull.ai',
-          author: 'Nagabhushana Raju S',
+          author: BUILD_AUTHOR,
           location: 'Mysore, Karnataka, India',
           build: 'SRIM / DigiBull build of Accomplish',
         };

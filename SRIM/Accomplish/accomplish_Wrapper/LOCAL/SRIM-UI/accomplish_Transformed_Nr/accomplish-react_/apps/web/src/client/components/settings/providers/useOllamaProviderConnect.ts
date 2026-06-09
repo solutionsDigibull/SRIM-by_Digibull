@@ -46,6 +46,13 @@ export function useOllamaProviderConnect({
   const latestProviderRef = useRef(connectedProvider);
   const refreshRequestIdRef = useRef(0);
 
+  const pickDefaultModelId = (models: OllamaModel[], currentModelId?: string | null) => {
+    if (currentModelId && models.some((model) => model.id === currentModelId)) {
+      return currentModelId;
+    }
+    return models[0]?.id ?? null;
+  };
+
   useEffect(() => {
     latestProviderRef.current = connectedProvider;
     const nextServerUrl = (connectedProvider?.credentials as OllamaCredentials | undefined)
@@ -75,11 +82,12 @@ export function useOllamaProviderConnect({
         toolSupport: m.toolSupport || 'unknown',
       }));
       setAvailableModels(models);
+      const selectedModelId = pickDefaultModelId(models);
 
       const provider: ConnectedProvider = {
         providerId: 'ollama',
         connectionStatus: 'connected',
-        selectedModelId: null,
+        selectedModelId,
         credentials: {
           type: 'ollama',
           serverUrl,
@@ -136,11 +144,7 @@ export function useOllamaProviderConnect({
       }));
       setAvailableModels(freshModels);
 
-      const freshModelIds = new Set(freshModels.map((m) => m.id));
-      const keepSelectedModel =
-        latestProvider.selectedModelId && freshModelIds.has(latestProvider.selectedModelId)
-          ? latestProvider.selectedModelId
-          : null;
+      const keepSelectedModel = pickDefaultModelId(freshModels, latestProvider.selectedModelId);
 
       const updatedProvider: ConnectedProvider = {
         ...latestProvider,

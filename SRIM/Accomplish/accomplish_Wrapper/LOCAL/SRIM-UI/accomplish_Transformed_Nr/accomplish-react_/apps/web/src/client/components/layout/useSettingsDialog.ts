@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { ProviderId, ConnectedProvider } from '@accomplish_ai/agent-core/common';
-import { hasAnyReadyProvider, isProviderReady } from '@accomplish_ai/agent-core/common';
+import { hasAnyReadyProvider, isProviderReady, PROVIDER_META } from '@accomplish_ai/agent-core/common';
 import { getAccomplish } from '@/lib/accomplish';
 import { useProviderSettings } from '@/components/settings/hooks/useProviderSettings';
 import { FIRST_FOUR_PROVIDERS, type SettingsTabId } from './settings-tabs';
@@ -177,6 +177,17 @@ export function useSettingsDialog({
     if (selectedProvider) {
       const provider = settings.connectedProviders[selectedProvider];
       if (provider?.connectionStatus === 'connected' && !provider.selectedModelId) {
+        const defaultModelId = provider.availableModels?.[0]?.id ?? null;
+        const isLocalProvider = PROVIDER_META[selectedProvider]?.category === 'local';
+        if (isLocalProvider && defaultModelId) {
+          void updateModel(selectedProvider, defaultModelId);
+          if (!settings.activeProviderId || settings.activeProviderId !== selectedProvider) {
+            void setActiveProvider(selectedProvider);
+          }
+          setShowModelError(false);
+          onOpenChange(false);
+          return;
+        }
         setShowModelError(true);
         return;
       }
