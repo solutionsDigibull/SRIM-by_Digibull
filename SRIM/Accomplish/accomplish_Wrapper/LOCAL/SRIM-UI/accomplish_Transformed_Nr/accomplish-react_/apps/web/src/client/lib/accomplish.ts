@@ -62,6 +62,18 @@ interface GwsAPI {
   onAuthError(callback: (payload: { message: string }) => void): () => void;
 }
 
+export interface FolderTreeEntry {
+  path: string;
+  name: string;
+  depth: number;
+  type: 'folder' | 'file';
+}
+
+export interface FolderSelectionResult {
+  folderPath: string;
+  tree: FolderTreeEntry[];
+}
+
 // Define the API interface
 interface AccomplishAPI {
   // App info
@@ -473,6 +485,8 @@ interface AccomplishAPI {
 
   // File attachments
   pickFolder(): Promise<string | null>;
+  pickFolderWithTree(): Promise<FolderSelectionResult | null>;
+  pickFolderWithTree(): Promise<FolderSelectionResult | null>;
   pickFiles(): Promise<FileAttachmentInfo[]>;
   getFilePath(file: File): string;
   processDroppedFiles(paths: string[]): Promise<FileAttachmentInfo[]>;

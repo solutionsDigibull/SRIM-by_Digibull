@@ -649,6 +649,10 @@ const accomplishAPI = {
 
   // File attachments
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke('files:pick-folder'),
+  pickFolderWithTree: (): Promise<{
+    folderPath: string;
+    tree: Array<{ path: string; name: string; depth: number; type: 'folder' | 'file' }>;
+  } | null> => ipcRenderer.invoke('files:pick-folder-tree'),
   pickFiles: (): Promise<import('@accomplish_ai/agent-core/common').FileAttachmentInfo[]> =>
     ipcRenderer.invoke('files:pick'),
   processDroppedFiles: (

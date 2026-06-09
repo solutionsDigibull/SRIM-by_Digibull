@@ -6,6 +6,7 @@ import type { IpcMainInvokeEvent } from 'electron';
 import type { FileAttachmentInfo } from '@accomplish_ai/agent-core/desktop-main';
 import { handle, assertTrustedWindow, MAX_ATTACHMENT_FILE_SIZE } from './utils';
 import { getLogCollector } from '../../logging';
+import { buildFolderSelection } from './folder-tree';
 
 const MAX_DROPPED_FILES = 5;
 
@@ -105,6 +106,17 @@ export function registerFileHandlers(): void {
       return null;
     }
     return result.filePaths[0];
+  });
+
+  handle('files:pick-folder-tree', async (event: IpcMainInvokeEvent) => {
+    const window = assertTrustedWindow(BrowserWindow.fromWebContents(event.sender));
+    const result = await dialog.showOpenDialog(window, {
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      return null;
+    }
+    return buildFolderSelection(result.filePaths[0]);
   });
 
   handle('files:pick', async (event: IpcMainInvokeEvent) => {

@@ -195,6 +195,63 @@ function getFileType(name: string): FileType {
   return 'other';
 }
 
+type BrowserFolderTreeEntry = {
+  path: string;
+  name: string;
+  depth: number;
+  type: 'folder' | 'file';
+};
+
+function buildBrowserFolderTree(files: File[]): { folderPath: string; tree: BrowserFolderTreeEntry[] } {
+  const tree: BrowserFolderTreeEntry[] = [];
+  const seen = new Set<string>();
+  const normalized = files
+    .map((file) => ({
+      file,
+      relativePath: (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name,
+    }))
+    .filter(({ relativePath }) => relativePath.length > 0)
+    .sort((left, right) => left.relativePath.localeCompare(right.relativePath));
+
+  const rootName = normalized[0]?.relativePath.split('/')[0] ?? 'Folder';
+  tree.push({ path: rootName, name: rootName, depth: 0, type: 'folder' });
+
+  for (const { file, relativePath } of normalized) {
+    const parts = relativePath.split('/').filter(Boolean);
+    const lastIndex = parts.length - 1;
+    let currentPath = '';
+
+    for (let index = 0; index < parts.length; index += 1) {
+      const part = parts[index];
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+      if (index === 0) {
+        continue;
+      }
+
+      const type = index === lastIndex ? 'file' : 'folder';
+      if (seen.has(currentPath)) {
+        continue;
+      }
+      seen.add(currentPath);
+      tree.push({ path: currentPath, name: part, depth: index, type });
+
+      if (type === 'file') {
+        break;
+      }
+    }
+
+    if (parts.length === 1) {
+      const filePath = file.name;
+      if (!seen.has(filePath)) {
+        seen.add(filePath);
+        tree.push({ path: filePath, name: file.name, depth: 1, type: 'file' });
+      }
+    }
+  }
+
+  return { folderPath: rootName, tree };
+}
+
 function browserPickFiles(opts?: { multiple?: boolean; directory?: boolean }): Promise<Array<{ id: string; name: string; path: string; type: FileType; size: number }>> {
   return new Promise((resolve) => {
     const input = document.createElement('input');
@@ -214,6 +271,25 @@ function browserPickFiles(opts?: { multiple?: boolean; directory?: boolean }): P
         type: getFileType(f.name),
         size: f.size,
       })));
+    };
+    input.addEventListener('cancel', () => { cleanup(); resolve([]); });
+    input.click();
+  });
+}
+
+function browserPickDirectoryFiles(): Promise<File[]> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = true;
+    (input as HTMLInputElement & { webkitdirectory: boolean }).webkitdirectory = true;
+    input.style.display = 'none';
+    document.body.appendChild(input);
+    const cleanup = () => { try { document.body.removeChild(input); } catch { /* already removed */ } };
+    input.onchange = () => {
+      const files = Array.from(input.files || []);
+      cleanup();
+      resolve(files);
     };
     input.addEventListener('cancel', () => { cleanup(); resolve([]); });
     input.click();
@@ -310,6 +386,11 @@ const noopAsync = async () => null;
       if (!files.length) return null;
       const parts = (files[0].path as string).replace(/\\/g, '/').split('/');
       return parts.slice(0, -1).join('/') || files[0].name;
+    };
+    if (key === 'pickFolderWithTree') return async () => {
+      const files = await browserPickDirectoryFiles();
+      if (!files.length) return null;
+      return buildBrowserFolderTree(files);
     };
     if (key === 'pickSkillFolder') return async () => {
       const files = await browserPickFiles({ directory: true });

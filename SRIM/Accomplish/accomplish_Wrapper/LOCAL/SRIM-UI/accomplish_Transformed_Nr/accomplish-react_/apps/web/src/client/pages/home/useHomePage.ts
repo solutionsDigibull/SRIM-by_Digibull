@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useTaskStore } from '@/stores/taskStore';
 import { getAccomplish } from '@/lib/accomplish';
+import type { FolderTreeEntry } from '@/lib/accomplish';
+import { APPEARANCE_EVENT, getAppearance } from '@/lib/appearance';
 import { createLogger } from '@/lib/logger';
 import { hasAnyReadyProvider } from '@accomplish_ai/agent-core/common';
 import { USE_CASE_KEYS, FAVORITES_PREVIEW_COUNT } from './homeConstants';
@@ -17,6 +19,13 @@ export function useHomePage() {
   const [prompt, setPrompt] = useState('');
   const [showAllFavorites, setShowAllFavorites] = useState(false);
   const [workingDirectory, setWorkingDirectory] = useState<string | undefined>(undefined);
+  const [folderOverlayOpen, setFolderOverlayOpen] = useState(false);
+  const [folderOverlayPhase, setFolderOverlayPhase] = useState<'processing' | 'preview'>('processing');
+  const [folderOverlayPath, setFolderOverlayPath] = useState<string | undefined>(undefined);
+  const [folderOverlayNodes, setFolderOverlayNodes] = useState<FolderTreeEntry[]>([]);
+  const [folderOverlayVisibleCount, setFolderOverlayVisibleCount] = useState(0);
+  const [motionEnabled, setMotionEnabled] = useState<boolean>(() => getAppearance().motion);
+  const folderSelectionTokenRef = useRef(0);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -33,6 +42,56 @@ export function useHomePage() {
   const setPermissionRequest = useTaskStore((state) => state.setPermissionRequest);
 
   const accomplish = useMemo(() => getAccomplish(), []);
+
+  useEffect(() => {
+    const handler = () => setMotionEnabled(getAppearance().motion);
+    window.addEventListener(APPEARANCE_EVENT, handler);
+    return () => window.removeEventListener(APPEARANCE_EVENT, handler);
+  }, []);
+
+  useEffect(() => {
+    if (!folderOverlayOpen || folderOverlayPhase !== 'preview') {
+      return;
+    }
+    if (!motionEnabled) {
+      setFolderOverlayVisibleCount(folderOverlayNodes.length);
+      const timeoutId = window.setTimeout(() => setFolderOverlayOpen(false), 1100);
+      return () => window.clearTimeout(timeoutId);
+    }
+    if (folderOverlayNodes.length === 0) {
+      const timeoutId = window.setTimeout(() => setFolderOverlayOpen(false), 400);
+      return () => window.clearTimeout(timeoutId);
+    }
+
+    setFolderOverlayVisibleCount(1);
+    const intervalId = window.setInterval(() => {
+      setFolderOverlayVisibleCount((current) => {
+        if (current >= folderOverlayNodes.length) {
+          window.clearInterval(intervalId);
+          return current;
+        }
+        return current + 1;
+      });
+    }, 24);
+
+    return () => window.clearInterval(intervalId);
+  }, [folderOverlayOpen, folderOverlayPhase, folderOverlayNodes.length, motionEnabled]);
+
+  useEffect(() => {
+    if (!folderOverlayOpen || folderOverlayPhase !== 'preview') {
+      return;
+    }
+    if (folderOverlayVisibleCount < folderOverlayNodes.length) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => setFolderOverlayOpen(false), 900);
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    folderOverlayOpen,
+    folderOverlayPhase,
+    folderOverlayNodes.length,
+    folderOverlayVisibleCount,
+  ]);
 
   const useCaseExamples = useMemo(
     () =>
@@ -153,6 +212,43 @@ export function useHomePage() {
     setShowSettingsDialog,
   ]);
 
+  const handleSelectFolder = useCallback(async () => {
+    try {
+      const selectionToken = ++folderSelectionTokenRef.current;
+      setFolderOverlayOpen(true);
+      setFolderOverlayPhase('processing');
+      setFolderOverlayPath(undefined);
+      setFolderOverlayNodes([]);
+      setFolderOverlayVisibleCount(0);
+
+      const selection = await accomplish.pickFolderWithTree();
+      if (selectionToken !== folderSelectionTokenRef.current) {
+        return;
+      }
+      if (!selection) {
+        setFolderOverlayOpen(false);
+        return;
+      }
+
+      setWorkingDirectory(selection.folderPath);
+      setFolderOverlayPath(selection.folderPath);
+      setFolderOverlayNodes(selection.tree);
+      setFolderOverlayPhase('preview');
+    } catch (err) {
+      logger.error('Failed to select folder with tree:', err);
+      setFolderOverlayOpen(false);
+    }
+  }, [accomplish]);
+
+  const handleCancelFolderOverlay = useCallback(() => {
+    folderSelectionTokenRef.current += 1;
+    setWorkingDirectory(undefined);
+    setFolderOverlayVisibleCount(0);
+    setFolderOverlayNodes([]);
+    setFolderOverlayPath(undefined);
+    setFolderOverlayOpen(false);
+  }, []);
+
   const displayedFavorites = showAllFavorites
     ? favoritesList
     : favoritesList.slice(0, FAVORITES_PREVIEW_COUNT);
@@ -185,6 +281,14 @@ export function useHomePage() {
     handleExampleClick,
     handleSkillSelect,
     handleAttachFiles,
+    handleSelectFolder,
+    handleCancelFolderOverlay,
+    folderOverlayOpen,
+    folderOverlayPhase,
+    folderOverlayPath,
+    folderOverlayNodes,
+    folderOverlayVisibleCount,
+    motionEnabled,
     addFiles,
     MAX_FILES,
   };

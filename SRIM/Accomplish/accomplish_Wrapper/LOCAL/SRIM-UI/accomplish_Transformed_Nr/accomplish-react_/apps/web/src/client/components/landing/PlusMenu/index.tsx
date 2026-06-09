@@ -13,7 +13,7 @@ interface PlusMenuProps {
   onSkillSelect: (command: string) => void;
   onOpenSettings: (tab: 'skills' | 'integrations') => void;
   onAttachFiles?: () => void;
-  onSelectFolder?: (folderPath: string) => void;
+  onSelectFolder?: () => Promise<void> | void;
   disabled?: boolean;
   attachmentCount?: number;
   maxAttachments?: number;
@@ -98,15 +98,8 @@ export function PlusMenu({
 
   const handleSelectFolder = useCallback(async () => {
     setOpen(false);
-    const accomplish = window.accomplish;
-    if (!accomplish?.pickFolder) {
-      return;
-    }
     try {
-      const folderPath = await accomplish.pickFolder();
-      if (folderPath) {
-        onSelectFolder?.(folderPath);
-      }
+      await onSelectFolder?.();
     } catch (err) {
       logger.error('Failed to pick folder:', err);
     }

@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { TaskInputBar } from '@/components/landing/TaskInputBar';
+import { FolderProcessingOverlay } from '@/components/landing/FolderProcessingOverlay';
 import { SettingsDialog } from '@/components/layout/SettingsDialog';
 import { springs } from '@/lib/animations';
 import { PlusMenu } from '@/components/landing/PlusMenu';
@@ -36,6 +37,14 @@ export function HomePage() {
     handleExampleClick,
     handleSkillSelect,
     handleAttachFiles,
+    handleSelectFolder,
+    handleCancelFolderOverlay,
+    folderOverlayOpen,
+    folderOverlayPhase,
+    folderOverlayPath,
+    folderOverlayNodes,
+    folderOverlayVisibleCount,
+    motionEnabled,
     handleOpenSettings,
     MAX_FILES,
   } = useHomePage();
@@ -47,6 +56,16 @@ export function HomePage() {
         onOpenChange={handleSettingsDialogChange}
         onApiKeySaved={handleApiKeySaved}
         initialTab={settingsInitialTab}
+      />
+
+      <FolderProcessingOverlay
+        open={folderOverlayOpen}
+        folderPath={folderOverlayPath}
+        phase={folderOverlayPhase}
+        nodes={folderOverlayNodes}
+        visibleCount={folderOverlayVisibleCount}
+        motionEnabled={motionEnabled}
+        onCancel={handleCancelFolderOverlay}
       />
 
       <div className="relative flex h-full flex-col overflow-hidden bg-accent">
@@ -114,7 +133,7 @@ export function HomePage() {
                     onSkillSelect={handleSkillSelect}
                     onOpenSettings={handleOpenSettings}
                     onAttachFiles={handleAttachFiles}
-                    onSelectFolder={setWorkingDirectory}
+                    onSelectFolder={handleSelectFolder}
                     disabled={isLoading}
                     attachmentCount={attachments.length}
                     maxAttachments={MAX_FILES}
