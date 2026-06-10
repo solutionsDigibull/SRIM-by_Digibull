@@ -3,6 +3,11 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 title Accomplish Web Launcher
 
+REM ---- 0. Use the bundled Node runtime if present (self-contained) ---------
+set "BUNDLED_NODE=%~dp0apps\desktop\resources\nodejs\win32-x64\node-v24.15.0-win-x64"
+if exist "%BUNDLED_NODE%\node.exe" set "PATH=%BUNDLED_NODE%;%PATH%"
+call corepack prepare pnpm@10.33.0 --activate >nul 2>&1
+
 echo ============================================================
 echo   Accomplish (SRIM) - Web build launcher
 echo   Backend daemon  : http://127.0.0.1:9234
