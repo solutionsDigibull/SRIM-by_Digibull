@@ -6,7 +6,14 @@ title Accomplish Web Launcher
 REM ---- 0. Use the bundled Node runtime if present (self-contained) ---------
 set "BUNDLED_NODE=%~dp0apps\desktop\resources\nodejs\win32-x64\node-v24.15.0-win-x64"
 if exist "%BUNDLED_NODE%\node.exe" set "PATH=%BUNDLED_NODE%;%PATH%"
-call corepack prepare pnpm@10.33.0 --activate >nul 2>&1
+call pnpm -v >nul 2>&1 || call corepack prepare pnpm@10.33.0 --activate >nul 2>&1
+
+REM ---- Force the local DEV test-login bypass ON ---------------------------
+REM Without this, a laptop where NODE_ENV=production is set will DISABLE the
+REM "Sign in as Tester" bypass; the daemon then tries to validate the dev token
+REM against the real NetBird API and returns 401 (login appears "broken").
+set "NODE_ENV=development"
+set "ACCOMPLISH_TEST_LOGIN=1"
 
 echo ============================================================
 echo   Accomplish (SRIM) - Web build launcher

@@ -16,8 +16,15 @@ set "APP_DIR=%ROOT%SRIM\Accomplish\accomplish_Wrapper\LOCAL\SRIM-UI\accomplish_T
 set "BUNDLED_NODE=%APP_DIR%\apps\desktop\resources\nodejs\win32-x64\node-v24.15.0-win-x64"
 
 REM ---- 0. Unblock files (in case the folder was copied via ZIP/USB/download)
-echo [0/4] Unblocking files (removing Windows "blocked" flag)...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-ChildItem -LiteralPath '%ROOT%' -Recurse -File -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue" >nul 2>&1
+REM Runs at most once (marker file), and skips node_modules so it does not crawl
+REM the entire dependency tree on every run.
+if not exist "%ROOT%.unblocked" (
+  echo [0/4] Unblocking files (removing Windows "blocked" flag, one-time)...
+  powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-ChildItem -LiteralPath '%ROOT%' -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notlike '*\node_modules\*' } | Unblock-File -ErrorAction SilentlyContinue" >nul 2>&1
+  echo done> "%ROOT%.unblocked"
+) else (
+  echo [0/4] Files already unblocked - skipping.
+)
 
 echo ============================================================
 echo   DigiBull-SRIM  -  Installer
@@ -52,6 +59,8 @@ call pnpm -v >nul 2>&1
 if errorlevel 1 (
   echo       corepack route failed - installing pnpm globally via npm...
   call npm i -g pnpm@10.33.0
+  REM npm installs global bins to %APPDATA%\npm, which may not be on PATH yet.
+  set "PATH=%APPDATA%\npm;%PATH%"
 )
 call pnpm -v >nul 2>&1 || ( echo [ERROR] pnpm is not available. & goto :FAIL )
 for /f "delims=" %%p in ('pnpm -v') do echo       pnpm %%p ready.
@@ -73,9 +82,21 @@ echo       Clean done.
 echo       Installing dependencies (pnpm install) - can take several minutes...
 cd /d "%APP_DIR%"
 set "CI=true"
-call pnpm install --config.engine-strict=false --config.confirmModulesPurge=false
+REM Force a DEV install. If the laptop has NODE_ENV=production set globally,
+REM pnpm would SKIP devDependencies (tsup/tsx/typescript) and the daemon build
+REM at launch would fail with "Cannot find module tsup" - the backend never
+REM starts. --prod=false + NODE_ENV=development guarantees the build tools land.
+set "NODE_ENV=development"
+call pnpm install --config.engine-strict=false --config.confirmModulesPurge=false --prod=false
 if errorlevel 1 ( echo [ERROR] pnpm install failed - see messages above. & goto :FAIL )
 echo       Dependencies installed.
+
+REM ---- 3b. Pre-build the backend daemon so it is ready before first launch --
+echo       Building backend daemon (tsup)...
+call pnpm -F @accomplish/daemon build
+if errorlevel 1 ( echo [ERROR] Backend daemon build FAILED - see messages above. & goto :FAIL )
+if not exist "%APP_DIR%\apps\daemon\dist\index.js" ( echo [ERROR] Daemon build produced no dist\index.js - backend cannot start. & goto :FAIL )
+echo       Backend daemon built OK.
 
 REM ---- 4. Done / offer to launch -------------------------------------------
 echo.

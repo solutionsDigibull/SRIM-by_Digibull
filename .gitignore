@@ -11,3 +11,8 @@ desktop.ini
 
 # ---- Local pnpm store ----
 .pnpm-store/
+
+# ---- Editor/script backups & one-time markers ----
+*.bak
+.unblocked
+daemon-test.log
