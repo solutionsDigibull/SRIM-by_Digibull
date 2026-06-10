@@ -58,6 +58,13 @@ if "%NEED_INSTALL%"=="1" (
 )
 echo.
 
+REM ---- 3b. Free ports from any previous/stale run -------------------------
+REM A leftover WEB window on :5173 or a dead daemon on :9234 makes a relaunch
+REM fail with "port in use" and leaves the UI talking to no backend. This kills
+REM only the processes that own those exact ports (precise LocalPort match).
+echo [clean] Closing any previous daemon/web instances (ports 9234 / 5173)...
+powershell -NoProfile -Command "Get-NetTCPConnection -State Listen -LocalPort 9234,9230,5173 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }" >nul 2>&1
+
 REM ---- 4. Launch backend daemon in its own window --------------------------
 echo [start] Launching backend daemon (separate window)...
 start "Accomplish DAEMON :9234" cmd /k "call pnpm -F @accomplish/daemon dev"

@@ -91,6 +91,17 @@ call pnpm install --config.engine-strict=false --config.confirmModulesPurge=fals
 if errorlevel 1 ( echo [ERROR] pnpm install failed - see messages above. & goto :FAIL )
 echo       Dependencies installed.
 
+REM ---- 3a. Rebuild native modules for the BUNDLED Node 24 runtime ----------
+REM better-sqlite3 is a native addon: its .node must match the Node version that
+REM RUNS the daemon (we pin bundled Node 24). If node_modules were ever built
+REM under a different Node (e.g. system Node 22), the daemon dies at startup with
+REM "NODE_MODULE_VERSION 127 ... requires 137" (ERR_DLOPEN_FAILED). Rebuilding
+REM here under bundled Node 24 guarantees the ABI matches.
+echo       Rebuilding native modules (better-sqlite3) for Node 24...
+call pnpm -r rebuild better-sqlite3
+if errorlevel 1 ( echo [ERROR] native module rebuild failed - see messages above. & goto :FAIL )
+echo       Native modules rebuilt for Node 24.
+
 REM ---- 3b. Pre-build the backend daemon so it is ready before first launch --
 echo       Building backend daemon (tsup)...
 call pnpm -F @accomplish/daemon build
