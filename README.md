@@ -20,14 +20,33 @@ It is a **pnpm monorepo** (Node 24 + pnpm 10.33.0):
 
 ## Quick start
 
+> 📘 **Full step-by-step (with screenshots-style slides):** see
+> [`SETUP_GUIDE.md`](SRIM/Accomplish/accomplish_Wrapper/LOCAL/docs/SETUP_GUIDE.md) and
+> [`SRIM_Setup_Guide.pptx`](SRIM/Accomplish/accomplish_Wrapper/LOCAL/docs/SRIM_Setup_Guide.pptx)
+> in `…/LOCAL/docs/` (the PPT links straight to the `.bat` files).
+
+### Step 0 - Clone (any drive: C:, D:, E: … it auto-adapts)
+
+```bash
+git clone https://github.com/solutionsDigibull/SRIM-by_Digibull.git
+cd SRIM-by_Digibull
+git lfs install && git lfs pull      # pulls the large *.zip / *.exe (Git LFS)
+```
+
 ### Option A - Windows (recommended): one-click installer
 
-From the repo root, double-click **`INSTALL.bat`** (or run it in a terminal). It will:
+From the repo root, **double-click `INSTALL.bat`**. It is fully self-contained - it does **not** need Node or winget pre-installed:
 
-1. Install **Node.js 24 LTS** (via `winget`) if missing,
-2. Activate **pnpm 10.33.0** (via `corepack`),
-3. Run `pnpm install` in the live `Nr` project,
-4. Optionally launch the app (daemon :9234 + web :5173 + browser) via `LAUNCH-WEB.bat`.
+1. **Unblocks** the folder (in case it arrived via ZIP/USB/download),
+2. Uses the **bundled Node.js 24.15.0** shipped in the repo (system Node is not required),
+3. Activates **pnpm 10.33.0** (via `corepack`),
+4. `pnpm install` in the live `Nr` project (dev tools included),
+5. **Rebuilds `better-sqlite3`** native module against Node 24 (prevents the daemon `NODE_MODULE_VERSION` crash),
+6. **Pre-builds** the backend daemon, then offers to launch.
+
+To start it later (or after a reboot), **double-click `LAUNCH-WEB.bat`** in
+`…/SRIM-UI/accomplish_Transformed_Nr/accomplish-react_/` - it frees any stale
+ports, starts the daemon (:9234) + web (:5173), and opens your browser.
 
 > Dev login: button **"Sign in as Tester"**, or token `srim-dev-token` (user `digibull` / pass `srim-test-2026`).
 
