@@ -189,22 +189,37 @@ You'll need to scan the QR code again to reconnect.
 
 ## Troubleshooting
 
-### "Connection timed out"
-- QR code expires after 60 seconds
-- Click **Connect WhatsApp** again to get a fresh QR
-- Make sure your phone has internet
-- WhatsApp must be installed on phone
+> **Fixed (June 2026 — web build):** "Connection timed out" with no QR, and
+> "scanned the code but the app shows nothing", were caused by **two bugs in the
+> web build, now fixed**: (1) the daemon's live-event endpoint (`/events`) 404'd
+> the browser's `?token=` connection, so QR/status updates never reached the UI;
+> (2) the web client wasn't subscribed to the WhatsApp QR/status channels. The
+> daemon was generating a valid QR the whole time — the browser just never got it.
+> **If you were on an old tab, hard-refresh (Ctrl+Shift+R) or relaunch
+> `LAUNCH-WEB.bat`** so the fixed code loads, then Connect again.
+
+### "Connection timed out" / no QR appears
+- First: **hard-refresh** the page (Ctrl+Shift+R) — an old tab won't have the QR fix.
+- The QR refreshes about every ~20s and the whole code expires after ~60s; click **Connect WhatsApp** for a fresh one.
+- Make sure your phone has internet and WhatsApp is installed.
+
+### Scanned the QR but the app shows nothing / "no response"
+- This was the SSE bug above — the phone linked successfully, but the app never
+  received the **connected** status. **Hard-refresh / relaunch** so the fix loads,
+  then reconnect; the badge will turn green within a few seconds of scanning.
+- If it still doesn't go green: click **Remove All Data**, then **Connect** and scan a fresh QR.
 
 ### "WhatsApp is not connected"
-- QR scan failed or you didn't complete it
-- Click **Reconnect WhatsApp** → scan new QR
-- Check if your phone's WhatsApp is up to date
+- QR scan failed or wasn't completed → click **Reconnect** → scan a new QR.
+- Check that your phone's WhatsApp is up to date.
 
-### Bot doesn't reply
-- Check DigiBull is running (daemon must be active)
-- Verify WhatsApp status is green in Settings
-- For groups: make sure bot JID is saved correctly
-- Check rate limits (max 10 msgs/min per person)
+### Bot doesn't reply to messages
+- Check DigiBull is running (the daemon window must be open / `:9234/health` returns ok).
+- Verify the WhatsApp status badge is **green** in Settings.
+- Self-chat mode: make sure you're texting **your own** number (your own chat), not another contact.
+- Groups: make sure the group JID is saved correctly.
+- Check rate limits (max 10 msgs/min per person).
+- Note: chat **history** list may be empty in this Baileys build (`makeInMemoryStore` is not available) — this does **not** affect triggering tasks, only the displayed history.
 
 ### "Ban risk" warning
 The integration uses Baileys, which is an unofficial WhatsApp library. WhatsApp _can_ ban accounts using unofficial clients, though it's rare for personal single-account use. If you're concerned:
@@ -269,4 +284,4 @@ Yes. Leave the **Group @mention JID** field empty. Only self-chat will work.
 
 ---
 
-**Last updated**: June 10, 2026
+**Last updated**: June 11, 2026

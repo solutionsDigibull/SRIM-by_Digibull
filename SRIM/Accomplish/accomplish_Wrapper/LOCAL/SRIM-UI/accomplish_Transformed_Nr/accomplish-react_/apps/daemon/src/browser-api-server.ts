@@ -608,8 +608,12 @@ export class BrowserApiServer {
         }
         res.writeHead(404, { 'Content-Type': 'application/json' }); res.end('{"error":"Not found"}');
       });
-      this.server.listen(PORT, '127.0.0.1', () => {
-        log.info(`[BrowserApi] Listening on port ${PORT}`);
+      // Bind host: 127.0.0.1 by default (desktop = local-only). In Docker the
+      // compose sets HOST=0.0.0.0 so the published port is reachable from the
+      // host browser — without this the container's 127.0.0.1 bind is unreachable.
+      const bindHost = process.env.HOST || '127.0.0.1';
+      this.server.listen(PORT, bindHost, () => {
+        log.info(`[BrowserApi] Listening on ${bindHost}:${PORT}`);
         // Keep SSE connections alive so browsers don't time them out
         setInterval(() => this.send(':heartbeat', {}), 30_000);
         resolve();
