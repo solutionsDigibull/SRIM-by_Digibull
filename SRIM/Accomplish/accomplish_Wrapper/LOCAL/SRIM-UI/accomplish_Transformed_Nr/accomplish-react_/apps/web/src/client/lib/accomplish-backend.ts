@@ -73,6 +73,10 @@ const EV: Record<string, string> = {
   onWorkspaceChanged: 'workspace:changed',
   onAccomplishAiUsageUpdate: 'accomplish-ai:usage-updated',
   onSkillsChanged: 'skills:changed',
+  // WhatsApp live events — without these the QR/status SSE pushes never reach the
+  // UI, so the login QR never shows and the connect flow times out after 30s.
+  onWhatsAppQR: 'integrations:whatsapp:qr',
+  onWhatsAppStatus: 'integrations:whatsapp:status',
 };
 
 const RPC: Record<string, string> = {

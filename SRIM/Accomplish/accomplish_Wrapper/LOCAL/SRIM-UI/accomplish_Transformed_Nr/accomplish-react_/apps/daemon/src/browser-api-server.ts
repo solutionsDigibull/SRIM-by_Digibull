@@ -577,7 +577,11 @@ export class BrowserApiServer {
           return;
         }
 
-        if (method === 'GET' && url === '/events') {
+        // NOTE: match on the path only — the browser's EventSource passes the
+        // session as `/events?token=...` (it cannot set an Authorization header),
+        // so an exact `url === '/events'` check 404s every web SSE connection and
+        // kills all live events (WhatsApp QR, status, task pushes).
+        if (method === 'GET' && (url === '/events' || url.startsWith('/events?'))) {
           res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
           res.write(':ok\n\n');
           this.sseClients.add(res);
