@@ -36,6 +36,8 @@ export interface MessagingIntegrationConfig {
   lastProcessedAt?: number;
   /** Message ID of last processed inbound message — dedup at watermark boundary */
   lastProcessedMessageId?: string;
+  /** Group JID for @mention group-trigger mode (WhatsApp); empty/undefined = self-chat only */
+  groupJid?: string;
 }
 
 /** Top-level messaging configuration stored in app_settings */

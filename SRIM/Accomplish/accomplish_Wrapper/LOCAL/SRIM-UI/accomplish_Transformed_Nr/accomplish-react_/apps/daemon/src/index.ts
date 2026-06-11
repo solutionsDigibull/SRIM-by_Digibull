@@ -37,6 +37,8 @@ import { LegacyImportService } from './legacy-import-service.js';
 // `shell.open*`) and calls these services over RPC.
 import { GoogleAccountService } from './google-account-service.js';
 import { SkillsService } from './skills-service.js';
+import { HuggingFaceLocalService } from './huggingface-local-service.js';
+import { CopilotAuthService } from './copilot-auth-service.js';
 import { log } from './logger.js';
 
 // __dirname is available natively in CJS (the daemon is built as CJS by tsup)
@@ -293,12 +295,14 @@ async function main(): Promise<void> {
 
   // Browser API server — HTTP+SSE on 127.0.0.1:9234 so a browser tab at
   // localhost:5173 can reach the daemon directly without Electron being open.
+  const huggingFaceLocalService = new HuggingFaceLocalService(userDataPath, settingsService);
+  const copilotAuthService = new CopilotAuthService();
   const { BrowserApiServer } = await import('./browser-api-server.js');
   const browserApi = new BrowserApiServer({
     taskService, settingsService, workspaceService,
     secretsService, connectorService, schedulerService, storage,
     skillsService, whatsappService, accomplishRuntime,
-    openAiOauthManager,
+    openAiOauthManager, huggingFaceLocalService, copilotAuthService,
   });
   await browserApi.start();
   // Wire the real SSE-client probe now that BrowserApiServer is live.

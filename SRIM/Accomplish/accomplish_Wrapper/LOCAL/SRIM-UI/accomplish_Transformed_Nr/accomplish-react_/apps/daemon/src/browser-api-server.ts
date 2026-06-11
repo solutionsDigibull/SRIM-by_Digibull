@@ -17,6 +17,9 @@ import type { SkillsService } from './skills-service.js';
 import { log } from './logger.js';
 import { matchTestLogin } from './test-login.js';
 import type { OpenAiOauthManager } from './opencode/auth-openai.js';
+import type { HuggingFaceLocalService } from './huggingface-local-service.js';
+import type { CopilotAuthService } from './copilot-auth-service.js';
+import { execFile } from 'node:child_process';
 
 // Address comes from the central registry (agent-core/common/constants), with
 // env overrides so a port/domain change needs no code edits.
@@ -41,6 +44,21 @@ function sanitizeApiKey(raw: string): string {
   return k;
 }
 
+/**
+ * Run a `gcloud` subcommand and return trimmed stdout. Used by the Vertex
+ * project-detection channels. Rejects (with the spawn error, e.g. ENOENT) when
+ * gcloud is not installed — callers guard for that and degrade gracefully.
+ * Ported from the Electron `vertex.ts` `execAsync` helper.
+ */
+function execGcloud(args: string[], timeoutMs = 5000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile('gcloud', args, { timeout: timeoutMs, encoding: 'utf-8' }, (error, stdout) => {
+      if (error) reject(error);
+      else resolve(String(stdout).trim());
+    });
+  });
+}
+
 export interface BrowserApiServices {
   taskService: TaskService;
   settingsService: SettingsService;
@@ -53,6 +71,8 @@ export interface BrowserApiServices {
   whatsappService: WhatsAppDaemonService;
   accomplishRuntime: AccomplishRuntime;
   openAiOauthManager: OpenAiOauthManager;
+  huggingFaceLocalService: HuggingFaceLocalService;
+  copilotAuthService: CopilotAuthService;
 }
 
 interface SessionData {
@@ -111,6 +131,10 @@ export class BrowserApiServer {
     svc.whatsappService.on('status', (status: string) => s('integrations:whatsapp:status', status));
     svc.skillsService.on('skills.changed', (d: unknown) => s('skills:changed', d));
     svc.accomplishRuntime.onUsageUpdate((usage) => s('accomplish-ai:usage-updated', usage));
+    // HuggingFace local model download progress → SSE. The service emits through
+    // this callback; the client subscribes via the EV map entry
+    // `onHuggingFaceDownloadProgress`. (Mirrors the WhatsApp QR event wiring.)
+    svc.huggingFaceLocalService.setEmit((ch, d) => s(ch, d));
   }
 
   private send(ch: string, data: unknown): void {
@@ -493,6 +517,97 @@ export class BrowserApiServer {
         };
       }
 
+      // ── HuggingFace local model management (ported from desktop
+      // apps/desktop/src/main/providers/huggingface-local/**). Heavy local
+      // inference runs in the daemon via @huggingface/transformers. Download
+      // progress streams over SSE on HF_DOWNLOAD_PROGRESS_CHANNEL. ──
+      case 'huggingface-local:list-models': return this.svc.huggingFaceLocalService.listModels();
+      case 'huggingface-local:download-model': return this.svc.huggingFaceLocalService.downloadModel(s(args[0]));
+      case 'huggingface-local:start-server': return this.svc.huggingFaceLocalService.startServer(s(args[0]));
+      case 'huggingface-local:stop-server': return this.svc.huggingFaceLocalService.stopServer();
+      case 'huggingface-local:server-status': return this.svc.huggingFaceLocalService.getServerStatus();
+      case 'huggingface-local:test-connection': return this.svc.huggingFaceLocalService.testConnection();
+      case 'huggingface-local:delete-model': return this.svc.huggingFaceLocalService.deleteModel(s(args[0]));
+
+      // ── GitHub Copilot device OAuth (ported from desktop
+      // apps/desktop/src/main/opencode/copilot-auth.ts). `login` returns the
+      // user code + verification URL; the web client opens the URL via
+      // window.open (the daemon has no shell.openExternal). ──
+      case 'copilot-oauth:status': return this.svc.copilotAuthService.getStatus();
+      case 'copilot-oauth:login': return this.svc.copilotAuthService.login();
+      case 'copilot-oauth:logout': await this.svc.copilotAuthService.logout(); return null;
+
+      // ── Vertex AI project detection via gcloud / ADC (ported from desktop
+      // apps/desktop/src/main/providers/vertex.ts). The daemon can spawn
+      // gcloud; both cases degrade gracefully when gcloud is not installed. ──
+      case 'vertex:detect-project': {
+        const envProject =
+          process.env.GOOGLE_CLOUD_PROJECT ||
+          process.env.CLOUDSDK_CORE_PROJECT ||
+          process.env.GCLOUD_PROJECT;
+        if (envProject) return { success: true, projectId: envProject };
+        try {
+          const project = await execGcloud(['config', 'get-value', 'project'], 5000);
+          if (project) return { success: true, projectId: project };
+        } catch {
+          // gcloud not available or not configured
+        }
+        return { success: false, projectId: null };
+      }
+      case 'vertex:list-projects': {
+        let token: string;
+        try {
+          token = await execGcloud(
+            ['auth', 'application-default', 'print-access-token'],
+            20000,
+          );
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          const notFound = /ENOENT|not found|not recognized|is not installed/i.test(msg);
+          return {
+            success: false,
+            projects: [],
+            error: notFound
+              ? 'gcloud CLI is not installed or not on PATH'
+              : `Failed to get ADC token: ${msg}`,
+          };
+        }
+        if (!token) return { success: false, projects: [], error: 'No ADC token available' };
+        const projects: Array<{ projectId: string; name: string }> = [];
+        let pageToken: string | undefined;
+        for (let page = 0; page < 3; page++) {
+          const url = new URL('https://cloudresourcemanager.googleapis.com/v1/projects');
+          url.searchParams.set('filter', 'lifecycleState:ACTIVE');
+          url.searchParams.set('pageSize', '100');
+          if (pageToken) url.searchParams.set('pageToken', pageToken);
+          const response = await fetch(url.toString(), {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(15000),
+          });
+          if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            return {
+              success: false,
+              projects: [],
+              error: `Failed to list projects (${response.status}): ${errorText}`,
+            };
+          }
+          const data = (await response.json()) as {
+            projects?: Array<{ projectId: string; name: string }>;
+            nextPageToken?: string;
+          };
+          if (data.projects) {
+            for (const p of data.projects) {
+              projects.push({ projectId: p.projectId, name: p.name || p.projectId });
+            }
+          }
+          if (!data.nextPageToken) break;
+          pageToken = data.nextPageToken;
+        }
+        projects.sort((a, b) => a.projectId.localeCompare(b.projectId));
+        return { success: true, projects };
+      }
+
       default: throw new Error(`Unknown channel: ${channel}`);
     }
   }
@@ -581,7 +696,7 @@ export class BrowserApiServer {
         // session as `/events?token=...` (it cannot set an Authorization header),
         // so an exact `url === '/events'` check 404s every web SSE connection and
         // kills all live events (WhatsApp QR, status, task pushes).
-        if (method === 'GET' && (url === '/events' || url.startsWith('/events?'))) {
+        if (method === 'GET' && (url === '/events' || url?.startsWith('/events?'))) {
           res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
           res.write(':ok\n\n');
           this.sseClients.add(res);

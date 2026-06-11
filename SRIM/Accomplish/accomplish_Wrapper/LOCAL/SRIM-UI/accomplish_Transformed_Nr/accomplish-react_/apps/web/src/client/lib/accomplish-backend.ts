@@ -77,6 +77,8 @@ const EV: Record<string, string> = {
   // UI, so the login QR never shows and the connect flow times out after 30s.
   onWhatsAppQR: 'integrations:whatsapp:qr',
   onWhatsAppStatus: 'integrations:whatsapp:status',
+  // HuggingFace local model download progress (daemon SSE → UI)
+  onHuggingFaceDownloadProgress: 'huggingface-local:download-progress',
 };
 
 const RPC: Record<string, string> = {
@@ -163,6 +165,21 @@ const RPC: Record<string, string> = {
   setLMStudioConfig: 'lmstudio:set-config',
   getHuggingFaceLocalConfig: 'huggingface-local:get-config',
   setHuggingFaceLocalConfig: 'huggingface-local:set-config',
+  // HuggingFace local model management (daemon port of the Electron provider)
+  listHuggingFaceModels: 'huggingface-local:list-models',
+  downloadHuggingFaceModel: 'huggingface-local:download-model',
+  startHuggingFaceServer: 'huggingface-local:start-server',
+  stopHuggingFaceServer: 'huggingface-local:stop-server',
+  getHuggingFaceServerStatus: 'huggingface-local:server-status',
+  testHuggingFaceConnection: 'huggingface-local:test-connection',
+  deleteHuggingFaceModel: 'huggingface-local:delete-model',
+  // GitHub Copilot device-OAuth (daemon-driven)
+  getCopilotOAuthStatus: 'copilot-oauth:status',
+  loginGithubCopilot: 'copilot-oauth:login',
+  logoutGithubCopilot: 'copilot-oauth:logout',
+  // Vertex project discovery (gcloud, ported to daemon)
+  detectVertexProject: 'vertex:detect-project',
+  listVertexProjects: 'vertex:list-projects',
   fetchProviderModels: 'models:fetch-provider',
   fetchOpenRouterModels: 'models:fetch-openrouter',
   fetchLiteLLMModels: 'models:fetch-litellm',
