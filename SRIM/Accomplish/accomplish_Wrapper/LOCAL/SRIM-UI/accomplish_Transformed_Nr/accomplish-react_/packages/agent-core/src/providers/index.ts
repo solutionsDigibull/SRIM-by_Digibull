@@ -33,7 +33,15 @@ export {
   type LiteLLMConnectionResult,
   type FetchLiteLLMModelsOptions,
 } from './litellm.js';
-export { testOllamaConnection, type OllamaModel, type OllamaConnectionResult } from './ollama.js';
+export {
+  testOllamaConnection,
+  createOllamaDerivedModel,
+  deleteOllamaDerivedModel,
+  type OllamaModel,
+  type OllamaConnectionResult,
+  type OllamaDerivedModelInput,
+  type OllamaModelOpResult,
+} from './ollama.js';
 export {
   validateAzureFoundry,
   testAzureFoundryConnection,

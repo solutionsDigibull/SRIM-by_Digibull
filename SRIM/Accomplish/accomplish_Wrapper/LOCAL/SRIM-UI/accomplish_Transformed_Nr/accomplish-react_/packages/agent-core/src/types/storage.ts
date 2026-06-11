@@ -203,6 +203,10 @@ export interface AppSettingsAPI {
   getLanguage(): LanguagePreference;
   /** Set the user's UI language preference */
   setLanguage(language: LanguagePreference): void;
+  /** Get the map of named feature flags (absent flag => off) */
+  getFeatureFlags(): Record<string, boolean>;
+  /** Toggle a single named feature flag; returns the updated map */
+  updateFeatureFlag(name: string, enabled: boolean): Record<string, boolean>;
   /** Get all application settings as a snapshot */
   getAppSettings(): AppSettings;
   /** Reset all application settings to defaults */

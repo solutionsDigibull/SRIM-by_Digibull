@@ -265,6 +265,18 @@ interface AccomplishAPI {
     } | null,
   ): Promise<void>;
 
+  // Ollama derived models — create/delete a model on the local Ollama server.
+  createOllamaDerivedModel(input: {
+    name: string;
+    baseModel: string;
+    system?: string;
+    parameters?: Record<string, string | number>;
+    baseUrl?: string;
+  }): Promise<{ success: boolean; error?: string }>;
+  deleteOllamaDerivedModel(
+    input: string | { name: string; baseUrl?: string },
+  ): Promise<{ success: boolean; error?: string }>;
+
   // Azure Foundry configuration
   getAzureFoundryConfig(): Promise<{
     baseUrl: string;
@@ -538,6 +550,10 @@ interface AccomplishAPI {
         error: { code: string; message: string };
       }
   >;
+
+  // Feature flags — named booleans persisted in app settings.
+  getFeatureFlags(): Promise<Record<string, boolean>>;
+  updateFeatureFlag(name: string, enabled: boolean): Promise<Record<string, boolean>>;
 
   // Logging
   logEvent(payload: {

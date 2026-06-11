@@ -14,7 +14,7 @@ import type { ConnectorService } from './connector-service.js';
 import type { SchedulerService } from './scheduler-service.js';
 import type { WhatsAppDaemonService } from './whatsapp-service.js';
 import type { SkillsService } from './skills-service.js';
-import { log } from './logger.js';
+import { log, getRecentLogLines } from './logger.js';
 import { matchTestLogin } from './test-login.js';
 import type { OpenAiOauthManager } from './opencode/auth-openai.js';
 import type { HuggingFaceLocalService } from './huggingface-local-service.js';
@@ -231,6 +231,19 @@ export class BrowserApiServer {
       case 'model:set': settingsService.setSelectedModel(args[0] as Parameters<typeof settingsService.setSelectedModel>[0]); return null;
       case 'ollama:get-config': return settingsService.getOllamaConfig();
       case 'ollama:set-config': settingsService.setOllamaConfig(args[0] as Parameters<typeof settingsService.setOllamaConfig>[0]); return null;
+
+      // ── Logs — recent daemon log lines for the web client's exportLogs flow.
+      // Returns plain text; the client wraps it in a Blob and triggers a
+      // browser download (there is no daemon-side filesystem write here). ──
+      case 'logs:get': {
+        const limit = typeof args[0] === 'number' ? (args[0] as number) : undefined;
+        return { lines: getRecentLogLines(limit) };
+      }
+
+      // ── Feature flags — named booleans persisted in app_settings.feature_flags.
+      // `get` returns the whole map; `update` toggles one flag and returns the map.
+      case 'feature-flags:get': return settingsService.getFeatureFlags();
+      case 'feature-flags:update': return settingsService.setFeatureFlag(s(args[0]), b(args[1]));
       case 'litellm:get-config': return settingsService.getLiteLLMConfig();
       case 'litellm:set-config': settingsService.setLiteLLMConfig(args[0] as Parameters<typeof settingsService.setLiteLLMConfig>[0]); return null;
       case 'connectors:list': return connectorService.list();
@@ -301,6 +314,47 @@ export class BrowserApiServer {
       case 'ollama:test-connection': {
         const { testOllamaConnection } = await import('@accomplish_ai/agent-core');
         return testOllamaConnection(s(args[0]));
+      }
+      // ── Ollama derived models — create/delete a model on the local Ollama
+      // server (HTTP to /api/create and /api/delete). The base URL falls back to
+      // the stored Ollama config when the client omits it. ──
+      case 'ollama:create-derived-model': {
+        const { createOllamaDerivedModel } = await import('@accomplish_ai/agent-core');
+        const input = (args[0] ?? {}) as {
+          name: string;
+          baseModel: string;
+          system?: string;
+          parameters?: Record<string, string | number>;
+          baseUrl?: string;
+        };
+        const url =
+          (typeof input.baseUrl === 'string' && input.baseUrl) ||
+          settingsService.getOllamaConfig()?.baseUrl ||
+          'http://localhost:11434';
+        return createOllamaDerivedModel(url, {
+          name: input.name,
+          baseModel: input.baseModel,
+          system: input.system,
+          parameters: input.parameters,
+        });
+      }
+      case 'ollama:delete-derived-model': {
+        const { deleteOllamaDerivedModel } = await import('@accomplish_ai/agent-core');
+        const arg = args[0];
+        let name: string;
+        let baseUrl: string | undefined;
+        if (typeof arg === 'string') {
+          name = arg;
+        } else {
+          const obj = (arg ?? {}) as { name?: string; baseUrl?: string };
+          name = obj.name ?? '';
+          baseUrl = obj.baseUrl;
+        }
+        const url =
+          (typeof baseUrl === 'string' && baseUrl) ||
+          settingsService.getOllamaConfig()?.baseUrl ||
+          'http://localhost:11434';
+        return deleteOllamaDerivedModel(url, name);
       }
       case 'litellm:test-connection': {
         const { testLiteLLMConnection } = await import('@accomplish_ai/agent-core');

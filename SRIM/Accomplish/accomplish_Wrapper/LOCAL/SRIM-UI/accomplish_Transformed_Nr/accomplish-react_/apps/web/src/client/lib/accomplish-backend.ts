@@ -134,6 +134,12 @@ const RPC: Record<string, string> = {
   getAccomplishAiUsage: 'accomplish-ai:get-usage',
   getAccomplishAiStatus: 'accomplish-ai:get-status',
   getOllamaConfig: 'ollama:get-config', setOllamaConfig: 'ollama:set-config',
+  // Ollama derived models — HTTP create/delete on the local Ollama server
+  // (runs in the daemon; mirrors ollama:test-connection).
+  createOllamaDerivedModel: 'ollama:create-derived-model',
+  deleteOllamaDerivedModel: 'ollama:delete-derived-model',
+  // Feature flags — get the whole map / toggle one flag (persisted in app_settings).
+  getFeatureFlags: 'feature-flags:get', updateFeatureFlag: 'feature-flags:update',
   getLiteLLMConfig: 'litellm:get-config', setLiteLLMConfig: 'litellm:set-config',
   // Skills management
   getSkills: 'skills:list', getEnabledSkills: 'skills:list-enabled',
@@ -385,6 +391,188 @@ const noopAsync = async () => null;
 
     // Browser-native replacements
     if (key === 'openExternal') return (url: string) => { window.open(url, '_blank'); };
+
+    // exportLogs — pull recent daemon log lines over RPC, fall back to any
+    // in-page captured console output, then trigger a browser download
+    // (Blob + <a download>). No Electron/file-system path is involved.
+    if (key === 'exportLogs') {
+      return async (): Promise<{ success: boolean; path?: string; error?: string; reason?: string }> => {
+        try {
+          let text = '';
+          try {
+            const res = (await rpc('logs:get', [])) as { lines?: string[] } | null;
+            if (res?.lines?.length) text = res.lines.join('\n');
+          } catch {
+            // daemon log fetch failed — fall through to client-only export
+          }
+          if (!text) {
+            const captured = (window as unknown as { __accomplishLogBuffer?: string[] }).__accomplishLogBuffer;
+            text = captured?.length
+              ? captured.join('\n')
+              : `Accomplish logs export\nGenerated: ${new Date().toISOString()}\n(No buffered log lines were available.)`;
+          }
+          const header = `# Accomplish (SRIM / DigiBull) logs\n# Exported: ${new Date().toISOString()}\n\n`;
+          const blob = new Blob([header + text + '\n'], { type: 'text/plain;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `accomplish-logs-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 10000);
+          return { success: true, path: a.download };
+        } catch (e) {
+          return { success: false, error: e instanceof Error ? e.message : 'Failed to export logs' };
+        }
+      };
+    }
+
+    // captureScreenshot — capture the current screen/window via the
+    // getDisplayMedia API, draw one frame to a canvas, and return a PNG dataURL.
+    // No new dependency; requires the user to grant the screen-share prompt.
+    if (key === 'captureScreenshot') {
+      return async (): Promise<{ success: boolean; data?: string; width?: number; height?: number; error?: string }> => {
+        const md = navigator.mediaDevices as MediaDevices & {
+          getDisplayMedia?: (c?: DisplayMediaStreamOptions) => Promise<MediaStream>;
+        };
+        if (!md?.getDisplayMedia) {
+          return { success: false, error: 'Screen capture is not supported in this browser' };
+        }
+        let stream: MediaStream | null = null;
+        try {
+          stream = await md.getDisplayMedia({ video: true, audio: false });
+          const track = stream.getVideoTracks()[0];
+          if (!track) return { success: false, error: 'No video track available for capture' };
+
+          const video = document.createElement('video');
+          video.srcObject = stream;
+          video.muted = true;
+          await video.play();
+          // Allow one frame to render before grabbing dimensions/painting.
+          await new Promise<void>((resolve) => {
+            if (video.readyState >= 2) { resolve(); return; }
+            video.onloadeddata = () => resolve();
+          });
+          await new Promise((r) => requestAnimationFrame(() => r(null)));
+
+          const width = video.videoWidth || track.getSettings().width || 1280;
+          const height = video.videoHeight || track.getSettings().height || 720;
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return { success: false, error: 'Could not get 2D canvas context' };
+          ctx.drawImage(video, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/png');
+          return { success: true, data: dataUrl, width, height };
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : 'Screen capture failed';
+          // User dismissing the picker rejects with NotAllowedError/AbortError.
+          return { success: false, error: msg };
+        } finally {
+          if (stream) { for (const t of stream.getTracks()) t.stop(); }
+        }
+      };
+    }
+
+    // captureAxtree — walk the live DOM and serialize an accessibility tree
+    // (role / name / value / children) in the renderer. Returns the tree as a
+    // JSON string per the accomplish.ts contract.
+    if (key === 'captureAxtree') {
+      return async (): Promise<{ success: boolean; data?: string; error?: string }> => {
+        try {
+          interface AxNode {
+            role: string;
+            name?: string;
+            value?: string;
+            children?: AxNode[];
+          }
+
+          const roleFor = (el: Element): string => {
+            const explicit = el.getAttribute('role');
+            if (explicit) return explicit;
+            const tag = el.tagName.toLowerCase();
+            const implicit: Record<string, string> = {
+              a: (el as HTMLAnchorElement).hasAttribute('href') ? 'link' : 'generic',
+              button: 'button',
+              h1: 'heading', h2: 'heading', h3: 'heading',
+              h4: 'heading', h5: 'heading', h6: 'heading',
+              img: 'img', input: 'textbox', textarea: 'textbox',
+              select: 'combobox', nav: 'navigation', main: 'main',
+              header: 'banner', footer: 'contentinfo', ul: 'list',
+              ol: 'list', li: 'listitem', table: 'table', form: 'form',
+              label: 'label', p: 'paragraph', section: 'region',
+            };
+            if (tag === 'input') {
+              const t = (el as HTMLInputElement).type;
+              if (t === 'checkbox') return 'checkbox';
+              if (t === 'radio') return 'radio';
+              if (t === 'button' || t === 'submit') return 'button';
+            }
+            return implicit[tag] ?? 'generic';
+          };
+
+          const nameFor = (el: Element): string | undefined => {
+            const aria = el.getAttribute('aria-label');
+            if (aria) return aria.trim();
+            const labelledBy = el.getAttribute('aria-labelledby');
+            if (labelledBy) {
+              const ref = document.getElementById(labelledBy);
+              if (ref?.textContent) return ref.textContent.trim();
+            }
+            const alt = el.getAttribute('alt');
+            if (alt) return alt.trim();
+            const title = el.getAttribute('title');
+            if (title) return title.trim();
+            // Leaf text content only (avoid duplicating descendants' text).
+            const ownText = Array.from(el.childNodes)
+              .filter((n) => n.nodeType === Node.TEXT_NODE)
+              .map((n) => n.textContent ?? '')
+              .join(' ')
+              .trim();
+            return ownText || undefined;
+          };
+
+          const isHidden = (el: Element): boolean => {
+            if (el.getAttribute('aria-hidden') === 'true') return true;
+            const style = window.getComputedStyle(el);
+            return style.display === 'none' || style.visibility === 'hidden';
+          };
+
+          let nodeCount = 0;
+          const MAX_NODES = 4000;
+
+          const walk = (el: Element): AxNode | null => {
+            if (nodeCount >= MAX_NODES) return null;
+            if (isHidden(el)) return null;
+            nodeCount += 1;
+            const node: AxNode = { role: roleFor(el) };
+            const name = nameFor(el);
+            if (name) node.name = name;
+            const value =
+              (el as HTMLInputElement).value ??
+              (el.tagName.toLowerCase() === 'input' || el.tagName.toLowerCase() === 'textarea'
+                ? (el as HTMLInputElement).value
+                : undefined);
+            if (typeof value === 'string' && value) node.value = value;
+
+            const children: AxNode[] = [];
+            for (const child of Array.from(el.children)) {
+              const childNode = walk(child);
+              if (childNode) children.push(childNode);
+            }
+            if (children.length) node.children = children;
+            return node;
+          };
+
+          const root = walk(document.body) ?? { role: 'document' };
+          return { success: true, data: JSON.stringify(root) };
+        } catch (e) {
+          return { success: false, error: e instanceof Error ? e.message : 'Failed to capture accessibility tree' };
+        }
+      };
+    }
     // OpenAI "Sign in with ChatGPT": ask the daemon to start the OAuth flow,
     // then open the returned authorize URL in a new tab (UI polls status after).
     if (key === 'loginOpenAiWithChatGpt') {

@@ -243,7 +243,13 @@ export { testLiteLLMConnection, fetchLiteLLMModels } from './providers/litellm.j
 
 export { testNimConnection, fetchNimModels, NIM_DEFAULT_BASE_URL } from './providers/nim.js';
 
-export { testOllamaConnection } from './providers/ollama.js';
+export {
+  testOllamaConnection,
+  createOllamaDerivedModel,
+  deleteOllamaDerivedModel,
+  type OllamaDerivedModelInput,
+  type OllamaModelOpResult,
+} from './providers/ollama.js';
 
 export { testOllamaModelToolSupport } from './providers/tool-support-testing.js';
 

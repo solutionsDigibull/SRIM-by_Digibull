@@ -126,6 +126,22 @@ export class SettingsService extends EventEmitter {
   // having to fetch the whole snapshot for a single field and keeps M3's
   // repointing of those handlers a one-line change.
 
+  // ─── Feature flags ──────────────────────────────────────────────────────
+  //
+  // Named boolean flags persisted as a JSON blob in app_settings.feature_flags.
+  // Read the whole map with getFeatureFlags(); toggle one at a time with
+  // setFeatureFlag(name, enabled), which returns the updated map.
+
+  getFeatureFlags(): Record<string, boolean> {
+    return this.storage.getFeatureFlags();
+  }
+
+  setFeatureFlag(name: string, enabled: boolean): Record<string, boolean> {
+    const flags = this.storage.updateFeatureFlag(name, enabled);
+    this.emit('settings.changed', { key: 'featureFlags', value: flags });
+    return flags;
+  }
+
   getNotificationsEnabled(): boolean {
     return this.storage.getNotificationsEnabled();
   }

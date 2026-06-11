@@ -72,6 +72,7 @@ interface AppSettingsRow {
   messaging_config: string | null;
   notifications_enabled: number;
   nim_config: string | null;
+  feature_flags: string | null;
 }
 
 export interface AppSettings {
@@ -149,6 +150,26 @@ export function setMessagingConfig(config: MessagingConfig | null): void {
   db.prepare('UPDATE app_settings SET messaging_config = ? WHERE id = 1').run(
     config ? JSON.stringify(config) : null,
   );
+}
+
+export function getFeatureFlags(): Record<string, boolean> {
+  const row = getRow();
+  if (!row.feature_flags) return {};
+  const parsed = safeParseJsonWithFallback<Record<string, unknown>>(row.feature_flags);
+  if (!parsed || typeof parsed !== 'object') return {};
+  const flags: Record<string, boolean> = {};
+  for (const [k, v] of Object.entries(parsed)) {
+    flags[k] = Boolean(v);
+  }
+  return flags;
+}
+
+export function updateFeatureFlag(name: string, enabled: boolean): Record<string, boolean> {
+  const db = getDatabase();
+  const flags = getFeatureFlags();
+  flags[name] = enabled;
+  db.prepare('UPDATE app_settings SET feature_flags = ? WHERE id = 1').run(JSON.stringify(flags));
+  return flags;
 }
 
 export function getAppSettings(): AppSettings {
